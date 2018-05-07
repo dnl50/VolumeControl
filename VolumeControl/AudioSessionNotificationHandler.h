@@ -8,7 +8,7 @@ private:
 
 public:
 	AudioSessionNotificationHandler();
-	~AudioSessionNotificationHandler();
+	virtual ~AudioSessionNotificationHandler();
 
 	/// ------------------------------------
 	/// --- IUnknown Interface Functions ---

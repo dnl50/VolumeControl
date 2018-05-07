@@ -3,11 +3,11 @@
 #include <iostream>
 
 /// Init the reference counter and set the session ID to identify the observed Session
-AudioSessionEventHandler::AudioSessionEventHandler(const UINT observedSessionID) : refCount(1UL), observedSessionID(observedSessionID) {
+AudioSessionEventHandler::AudioSessionEventHandler(const VolumeController& volController, const UINT observedSessionID) : refCount(1UL), volController(volController), observedSessionID(observedSessionID) {
 
 }
 
-/// Use the default destructor.
+/// Use the default destructor
 AudioSessionEventHandler::~AudioSessionEventHandler() = default;
 
 /// ------------------------------------
@@ -86,6 +86,8 @@ HRESULT AudioSessionEventHandler::OnIconPathChanged(LPCWSTR NewIconPath, LPCGUID
 
 // Notifies the client that the volume level or muting state of the session has changed
 HRESULT AudioSessionEventHandler::OnSimpleVolumeChanged(float NewVolume, BOOL NewMute, LPCGUID EventContext) {
+	volController.getListenerNotifier().notifyOnVolumeChanged(observedSessionID, NewVolume, NewMute);
+
 	return S_OK;
 }
 
@@ -93,7 +95,7 @@ HRESULT AudioSessionEventHandler::OnSimpleVolumeChanged(float NewVolume, BOOL Ne
 HRESULT AudioSessionEventHandler::OnChannelVolumeChanged(DWORD ChannelCount, float NewChannelVolumeArray[],
 	DWORD ChangedChannel, LPCGUID EventContext) {
 
-	/// channel specific volume changes are irrelevant
+	/// channel specific volume changes are irrelevant (for now LUL)
 
 	return S_OK;
 }
@@ -105,8 +107,6 @@ HRESULT AudioSessionEventHandler::OnGroupingParamChanged(LPCGUID NewGroupingPara
 
 // Notifies the client that the stream-activity state of the session has changed
 HRESULT AudioSessionEventHandler::OnStateChanged(AudioSessionState NewState) {
-
-
 	if(NewState == AudioSessionStateExpired) {
 		// TODO: Session Expired
 	}

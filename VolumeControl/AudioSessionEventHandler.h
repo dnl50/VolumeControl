@@ -1,16 +1,22 @@
 #pragma once
 
 #include <Audiopolicy.h>
+#include "AudioSessionManager.h"
+
+/// forward declare
+class VolumeController;
 
 class AudioSessionEventHandler : public IAudioSessionEvents
 {
 private:
+	const VolumeController& volController;
+
 	ULONG refCount;
 
 	UINT observedSessionID;
 
 public:
-	AudioSessionEventHandler(const UINT observedSessionID);
+	explicit AudioSessionEventHandler(const VolumeController& volController, const UINT observedSessionID);
 	virtual ~AudioSessionEventHandler();
 
 	/// ---------------------------

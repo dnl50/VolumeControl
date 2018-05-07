@@ -12,15 +12,15 @@ private:
 
 public:
 	DeviceEnumNotificationHandler();
-	~DeviceEnumNotificationHandler();
+	virtual ~DeviceEnumNotificationHandler();
 
 	/// ---------------------------
 	/// --- Overriden Functions ---
 	/// ---------------------------
 
-	HRESULT __stdcall QueryInterface(const IID& riid, void** ppvObject) override;
-	ULONG __stdcall AddRef() override;
-	ULONG __stdcall Release() override;
+	HRESULT __stdcall QueryInterface(const IID& riid, void** ppvObject) final;
+	ULONG __stdcall AddRef() final;
+	ULONG __stdcall Release() final;
 
 	/// ------------------------------------------
 	/// --- Overridable Default Implementation ---
