@@ -46,9 +46,7 @@ void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 		defaultDeviceVolume->Release();
 	}
 
-	if(currentDefaultDevice) {
-		currentDefaultDevice->Release();
-	}
+	SAFERELEASE(currentDefaultDevice);
 
 	/// reset completely
 	currentDefaultDevice = nullptr;
@@ -104,15 +102,9 @@ void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 }
 
 IMMDevice* AudioDeviceManager::getCurrentDefaultDevice() const {
-	IMMDevice* defDev = nullptr;
+	currentDefaultDevice->AddRef();
 
-	deviceEnum->GetDefaultAudioEndpoint(
-		eRender, 
-		eMultimedia, 
-		&defDev
-	);
-
-	return defDev;
+	return currentDefaultDevice;
 }
 
 LPWSTR AudioDeviceManager::getCurrentDefaultDeviceID() const {
