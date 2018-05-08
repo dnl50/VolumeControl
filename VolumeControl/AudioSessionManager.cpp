@@ -92,12 +92,14 @@ void AudioSessionManager::removeSessionByID(const ULONG id) const {
 	if(session && sessionEventHandler) {
 		session->UnregisterAudioSessionNotification(sessionEventHandler);
 
-		SAFERELEASE(sessionEventHandler);
-		SAFERELEASE(session);
-
 		/// remove from map
 		idMap->erase(searchIdMap);
 		eventHandlerMap->erase(searchHandlerMap);
+
+		SAFERELEASE(sessionEventHandler);
+		SAFERELEASE(session);
+
+		
 
 		/// notify listeners
 		volController.getListenerNotifier().notifyOnSessionRemoved(id);
@@ -137,6 +139,12 @@ void AudioSessionManager::init() {
 	/// and IAudioSessionEnumerator
 	const auto defaultDevice = volController.getAudioDeviceManager().getCurrentDefaultDevice();
 
+	if(!defaultDevice) {
+		DEBUG_PRINT("Failed to get Default device! Line " << __LINE__);
+
+		return;
+	}
+
 	auto hr = defaultDevice->Activate(
 		__uuidof(IAudioSessionManager2),
 		CLSCTX_ALL,
@@ -145,9 +153,7 @@ void AudioSessionManager::init() {
 	);
 
 	/// release the handle again
-	if(defaultDevice) {
-		defaultDevice->Release();
-	}
+	defaultDevice->Release();
 
 	if (FAILED(hr) || !sessionManager) {
 		DEBUG_PRINT("Failed to get IAudioSessionManager!");
@@ -268,6 +274,9 @@ HRESULT AudioSessionManager::addSession(IAudioSessionControl* newSession) {
 	);
 
 	if (SUCCEEDED(hr) && sessionControl) {
+		/// add ref
+		sessionControl->AddRef();
+		
 		ULONG insertId = getNextID();
 
 		const auto handler = new AudioSessionEventHandler(volController, insertId);

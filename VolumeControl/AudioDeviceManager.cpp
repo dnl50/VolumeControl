@@ -40,14 +40,19 @@ void AudioDeviceManager::initAndNotify() {
 }
 
 void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
-	/// unregister listener 
+	/// unregister listener and saferelease
 	if (defaultDeviceVolume) {
 		defaultDeviceVolume->UnregisterControlChangeNotify(this);
+		defaultDeviceVolume->Release();
 	}
 
-	/// safe release the pointers
-	SAFERELEASE(defaultDeviceVolume);
-	SAFERELEASE(currentDefaultDevice);
+	if(currentDefaultDevice) {
+		currentDefaultDevice->Release();
+	}
+
+	/// reset completely
+	currentDefaultDevice = nullptr;
+	defaultDeviceVolume = nullptr;
 
 	/// get default device
 	auto hr = deviceEnum->GetDefaultAudioEndpoint(
@@ -88,6 +93,9 @@ void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 		return;
 	}
 
+	/// add ref
+	defaultDeviceVolume->AddRef();
+
 	/// register as listener
 	defaultDeviceVolume->RegisterControlChangeNotify(this);
 
@@ -96,9 +104,15 @@ void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 }
 
 IMMDevice* AudioDeviceManager::getCurrentDefaultDevice() const {
-	currentDefaultDevice->AddRef();
+	IMMDevice* defDev = nullptr;
 
-	return currentDefaultDevice;
+	deviceEnum->GetDefaultAudioEndpoint(
+		eRender, 
+		eMultimedia, 
+		&defDev
+	);
+
+	return defDev;
 }
 
 LPWSTR AudioDeviceManager::getCurrentDefaultDeviceID() const {
@@ -127,9 +141,18 @@ IMMDevice* AudioDeviceManager::getDeviceByID(const LPCWSTR id) const {
 }
 
 IAudioEndpointVolume* AudioDeviceManager::getEndpointVolume() const {
-	defaultDeviceVolume->AddRef();
+	IAudioEndpointVolume* vol = nullptr;
+	
+	if(auto device = getCurrentDefaultDevice()) {
+		device->Activate(
+			__uuidof(IAudioEndpointVolume),
+			CLSCTX_ALL,
+			nullptr,
+			reinterpret_cast<void**>(&vol)
+		);
+	}
 
-	return defaultDeviceVolume;
+	return vol;
 }
 
 void AudioDeviceManager::shutdown() const {
@@ -148,7 +171,7 @@ void AudioDeviceManager::shutdown() const {
 }
 
 HRESULT AudioDeviceManager::OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId) {
-	const auto newDefault = wcscmp(pwstrDefaultDeviceId, currentDefaultDeviceID);
+	const auto newDefault = (currentDefaultDeviceID == nullptr) ? true : wcscmp(pwstrDefaultDeviceId, currentDefaultDeviceID);
 		
 	if(flow == EDataFlow::eRender && role == ERole::eMultimedia && newDefault) {
 		updateDefaultDeviceParamsAndNotify();
