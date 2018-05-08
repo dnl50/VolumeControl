@@ -10,11 +10,11 @@ AudioSessionEventHandler::AudioSessionEventHandler(const VolumeController& volCo
 /// Use the default destructor
 AudioSessionEventHandler::~AudioSessionEventHandler() = default;
 
-/// ------------------------------------
-/// --- IUnknown Interface Functions ---
-/// ------------------------------------
+// ------------------------------------
+// --- IUnknown Interface Functions ---
+// ------------------------------------
 
-// Return a pointer to the requested interface if this interface supports it.
+/// Return a pointer to the requested interface if this interface supports it.
 HRESULT AudioSessionEventHandler::QueryInterface(const IID& riid, void** ppvObject) {
 
 	// validate given pointer
@@ -47,7 +47,7 @@ HRESULT AudioSessionEventHandler::QueryInterface(const IID& riid, void** ppvObje
 	return S_OK;
 }
 
-// increment the object's internal counter
+/// increment the object's internal counter
 ULONG AudioSessionEventHandler::AddRef() {
 
 	// use the InterlockedIncrement function for thread safety
@@ -56,7 +56,7 @@ ULONG AudioSessionEventHandler::AddRef() {
 	return refCount;
 }
 
-// Decrement the object's internal counter
+/// Decrement the object's internal counter
 ULONG AudioSessionEventHandler::Release() {
 
 	// use the InterlockedDecrement function for thread safety
@@ -70,28 +70,28 @@ ULONG AudioSessionEventHandler::Release() {
 }
 
 
-/// -----------------------------------------------
-/// --- IAudioSessionEvents Interface Functions ---
-/// -----------------------------------------------
+// -----------------------------------------------
+// --- IAudioSessionEvents Interface Functions ---
+// -----------------------------------------------
 
-// Notifies the client that the display name for the session has changed
+/// Notifies the client that the display name for the session has changed
 HRESULT AudioSessionEventHandler::OnDisplayNameChanged(LPCWSTR NewDisplayName, LPCGUID EventContext) {
 	return S_OK;
 }
 
-// Notifies the client that the display icon for the session has changed
+/// Notifies the client that the display icon for the session has changed
 HRESULT AudioSessionEventHandler::OnIconPathChanged(LPCWSTR NewIconPath, LPCGUID EventContext) {
 	return S_OK;
 }
 
-// Notifies the client that the volume level or muting state of the session has changed
+/// Notifies the client that the volume level or muting state of the session has changed
 HRESULT AudioSessionEventHandler::OnSimpleVolumeChanged(float NewVolume, BOOL NewMute, LPCGUID EventContext) {
 	volController.getListenerNotifier().notifyOnVolumeChanged(observedSessionID, NewVolume, NewMute);
 
 	return S_OK;
 }
 
-// Notifies the client that the volume level of an audio channel in the session submix has changed
+/// Notifies the client that the volume level of an audio channel in the session submix has changed
 HRESULT AudioSessionEventHandler::OnChannelVolumeChanged(DWORD ChannelCount, float NewChannelVolumeArray[],
 	DWORD ChangedChannel, LPCGUID EventContext) {
 
@@ -100,26 +100,33 @@ HRESULT AudioSessionEventHandler::OnChannelVolumeChanged(DWORD ChannelCount, flo
 	return S_OK;
 }
 
-// Notifies the client that the grouping parameter for the session has changed
+/// Notifies the client that the grouping parameter for the session has changed
 HRESULT AudioSessionEventHandler::OnGroupingParamChanged(LPCGUID NewGroupingParam, LPCGUID EventContext) {
 	return S_OK;
 }
 
-// Notifies the client that the stream-activity state of the session has changed
+/// Notifies the client that the stream-activity state of the session has changed
 HRESULT AudioSessionEventHandler::OnStateChanged(AudioSessionState NewState) {
-	if(NewState == AudioSessionStateExpired) {
-		// TODO: Session Expired
-	}
+	
 
+
+	switch(NewState) {
+
+	case AudioSessionStateExpired:
+		volController.getAudioSessionManager().removeSessionByID(observedSessionID);
+		break;	
+
+	default:
+		break;
+	
+	}
+	
 	return S_OK;
 }
 
-// Notifies the client that the session has been disconnected.
-HRESULT AudioSessionEventHandler::OnSessionDisconnected(AudioSessionDisconnectReason DisconnectReason) {
-
-	// TODO: implement AudioSessionEventHandler::OnSessionDisconnected!
-
-	std::cout << "Session Disconnected!" << std::endl;
-
+/// Notifies the client that the session has been disconnected
+HRESULT AudioSessionEventHandler::OnSessionDisconnected(AudioSessionDisconnectReason DisconnectReason) {	
+	volController.getAudioSessionManager().removeSessionByID(observedSessionID);
+	
 	return S_OK;
 }

@@ -22,7 +22,7 @@ void ListenerNotifier::unregisterListener(shared_ptr<Listener> listener) const {
 	listeners->remove(listener);
 }
 
-void ListenerNotifier::notifyOnSessionCreated(const unsigned id) {
+void ListenerNotifier::notifyOnSessionAdded(const unsigned id) {
 	for (const auto& listener : *listeners) {
 		listener->OnSessionCreated(id);
 	}
@@ -30,7 +30,7 @@ void ListenerNotifier::notifyOnSessionCreated(const unsigned id) {
 
 void ListenerNotifier::notifyOnSessionRemoved(const unsigned id) {
 	for (const auto& listener : *listeners) {
-		listener->OnSessionCreated(id);
+		listener->OnSessionRemoved(id);
 	}
 }
 
@@ -49,5 +49,11 @@ void ListenerNotifier::notifyOnDefaultDeviceChanged() {
 void ListenerNotifier::notifyOnDefaultDevicePropertyChanged(PROPERTYKEY key) {
 	for (const auto& listener : *listeners) {
 		listener->OnDefaultDevicePropertyChanged(key);
+	}
+}
+
+void ListenerNotifier::notifyOnEndpointVolumeChanged(float newVolume, bool newMute) {
+	for (const auto& listener : *listeners) {
+		listener->OnEndpointVolumeChanged(newVolume, newMute);
 	}
 }

@@ -14,17 +14,17 @@ public:
 	DeviceEnumNotificationHandler();
 	virtual ~DeviceEnumNotificationHandler();
 
-	/// ---------------------------
-	/// --- Overriden Functions ---
-	/// ---------------------------
+	// ---------------------------
+	// --- Overriden Functions ---
+	// ---------------------------
 
 	HRESULT __stdcall QueryInterface(const IID& riid, void** ppvObject) final;
 	ULONG __stdcall AddRef() final;
 	ULONG __stdcall Release() final;
 
-	/// ------------------------------------------
-	/// --- Overridable Default Implementation ---
-	/// ------------------------------------------
+	// ------------------------------------------
+	// --- Overridable Default Implementation ---
+	// ------------------------------------------
 
 	virtual HRESULT __stdcall OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState);
 	virtual HRESULT __stdcall OnDeviceAdded(LPCWSTR pwstrDeviceId);

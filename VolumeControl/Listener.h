@@ -9,6 +9,7 @@ public:
 	virtual void OnSessionRemoved(unsigned int id);
 	virtual void OnVolumeChanged(unsigned int id, const float newVolume, const bool newMute);
 	virtual void OnDefaultDevicePropertyChanged(PROPERTYKEY key);
+	virtual void OnEndpointVolumeChanged(float newVolume, bool newMute);
 
 };
 

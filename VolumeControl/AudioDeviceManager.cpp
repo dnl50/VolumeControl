@@ -3,41 +3,12 @@
 #include <iostream>
 
 
-void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
-	SAFERELEASE(currentDefaultDevice);
-
-	/// get default device
-	auto hr = deviceEnum->GetDefaultAudioEndpoint(
-		EDataFlow::eRender,
-		ERole::eMultimedia,
-		&currentDefaultDevice
-	);
-
-	if (FAILED(hr) || !currentDefaultDevice) {
-		DEBUG_PRINT("Failed to get default render device!");
-
-		return;
-	}
-
-	/// get the default device ID
-	CoTaskMemFree(currentDefaultDeviceID);
-	currentDefaultDeviceID = nullptr;
-
-	hr = currentDefaultDevice->GetId(&currentDefaultDeviceID);
-
-	if(FAILED(hr) || !currentDefaultDeviceID) {
-		DEBUG_PRINT("Failed to get default render device ID!");
-
-		return;
-	}
-
-	volController.getListenerNotifier().notifyOnDefaultDeviceChanged();
-}
-
 AudioDeviceManager::AudioDeviceManager(const VolumeController& volController) : volController(volController),
 		deviceEnum(nullptr), 
 		currentDefaultDevice(nullptr), 
-		currentDefaultDeviceID(nullptr) {
+		currentDefaultDeviceID(nullptr), 
+		defaultDeviceVolume(nullptr) {
+
 }
 
 AudioDeviceManager::~AudioDeviceManager() = default;
@@ -68,7 +39,65 @@ void AudioDeviceManager::initAndNotify() {
 	updateDefaultDeviceParamsAndNotify();
 }
 
+void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
+	/// unregister listener 
+	if (defaultDeviceVolume) {
+		defaultDeviceVolume->UnregisterControlChangeNotify(this);
+	}
+
+	/// safe release the pointers
+	SAFERELEASE(defaultDeviceVolume);
+	SAFERELEASE(currentDefaultDevice);
+
+	/// get default device
+	auto hr = deviceEnum->GetDefaultAudioEndpoint(
+		EDataFlow::eRender,
+		ERole::eMultimedia,
+		&currentDefaultDevice
+	);
+
+	if (FAILED(hr) || !currentDefaultDevice) {
+		DEBUG_PRINT("Failed to get default render device!");
+
+		return;
+	}
+
+	/// get the default device ID
+	CoTaskMemFree(currentDefaultDeviceID);
+	currentDefaultDeviceID = nullptr;
+
+	hr = currentDefaultDevice->GetId(&currentDefaultDeviceID);
+
+	if (FAILED(hr) || !currentDefaultDeviceID) {
+		DEBUG_PRINT("Failed to get default render device ID!");
+
+		return;
+	}
+
+	/// get default device volume
+	hr = currentDefaultDevice->Activate(
+		__uuidof(IAudioEndpointVolume),
+		CLSCTX_ALL,
+		nullptr,
+		reinterpret_cast<void**>(&defaultDeviceVolume)
+	);
+
+	if (FAILED(hr) || !defaultDeviceVolume) {
+		DEBUG_PRINT("Failed to get default render device volume!");
+
+		return;
+	}
+
+	/// register as listener
+	defaultDeviceVolume->RegisterControlChangeNotify(this);
+
+	/// notify the listeners
+	volController.getListenerNotifier().notifyOnDefaultDeviceChanged();
+}
+
 IMMDevice* AudioDeviceManager::getCurrentDefaultDevice() const {
+	currentDefaultDevice->AddRef();
+
 	return currentDefaultDevice;
 }
 
@@ -97,12 +126,23 @@ IMMDevice* AudioDeviceManager::getDeviceByID(const LPCWSTR id) const {
 	return device;
 }
 
+IAudioEndpointVolume* AudioDeviceManager::getEndpointVolume() const {
+	defaultDeviceVolume->AddRef();
+
+	return defaultDeviceVolume;
+}
+
 void AudioDeviceManager::shutdown() const {
 	/// unregister as listener
 	if(deviceEnum) {
 		deviceEnum->UnregisterEndpointNotificationCallback((IMMNotificationClient*) this);		
 	}
 
+	if(defaultDeviceVolume) {
+		defaultDeviceVolume->UnregisterControlChangeNotify((IAudioEndpointVolumeCallback*) this);
+	}
+
+	SAFERELEASE(defaultDeviceVolume);
 	SAFERELEASE(currentDefaultDevice);
 	SAFERELEASE(deviceEnum);
 }
@@ -123,6 +163,12 @@ HRESULT AudioDeviceManager::OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const 
 	if(ofDefault) {
 		volController.getListenerNotifier().notifyOnDefaultDevicePropertyChanged(key);
 	}
+
+	return S_OK;
+}
+
+HRESULT AudioDeviceManager::OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify) {
+	volController.getListenerNotifier().notifyOnEndpointVolumeChanged(pNotify->fMasterVolume, pNotify->bMuted);
 
 	return S_OK;
 }

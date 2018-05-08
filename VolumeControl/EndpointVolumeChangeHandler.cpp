@@ -1,21 +1,20 @@
 #include "stdafx.h"
-#include "AudioSessionNotificationHandler.h"
+#include "EndpointVolumeChangeHandler.h"
 
 
-/// Init the reference counter
-AudioSessionNotificationHandler::AudioSessionNotificationHandler() : refCount(1UL) {
+EndpointVolumeChangeHandler::EndpointVolumeChangeHandler() : refCount(1UL) {
 
 }
 
-/// Use the default destructor
-AudioSessionNotificationHandler::~AudioSessionNotificationHandler() = default;
+
+EndpointVolumeChangeHandler::~EndpointVolumeChangeHandler() = default;
 
 // ------------------------------------
 // --- IUnknown Interface Functions ---
 // ------------------------------------
 
 /// Return a pointer to the requested interface if this interface supports it.
-HRESULT AudioSessionNotificationHandler::QueryInterface(const IID& riid, void** ppvObject) {
+HRESULT EndpointVolumeChangeHandler::QueryInterface(const IID& riid, void** ppvObject) {
 
 	// validate given pointer
 	if (!ppvObject) {
@@ -31,12 +30,12 @@ HRESULT AudioSessionNotificationHandler::QueryInterface(const IID& riid, void** 
 		*ppvObject = static_cast<IUnknown*>(this);
 
 	}
-	else if (riid == __uuidof(IAudioSessionNotification)) {
+	else if (riid == __uuidof(IAudioEndpointVolumeCallback)) {
 
 		// Increment the reference count and return the pointer
 		AddRef();
 
-		*ppvObject = static_cast<IAudioSessionNotification*>(this);
+		*ppvObject = static_cast<IAudioEndpointVolumeCallback*>(this);
 	}
 	else {
 		*ppvObject = nullptr;
@@ -48,7 +47,7 @@ HRESULT AudioSessionNotificationHandler::QueryInterface(const IID& riid, void** 
 }
 
 /// increment the object's internal counter
-ULONG AudioSessionNotificationHandler::AddRef() {
+ULONG EndpointVolumeChangeHandler::AddRef() {
 
 	// use the InterlockedIncrement function for thread safety
 	InterlockedIncrement(&refCount);
@@ -57,7 +56,7 @@ ULONG AudioSessionNotificationHandler::AddRef() {
 }
 
 /// Decrement the object's internal counter
-ULONG AudioSessionNotificationHandler::Release() {
+ULONG EndpointVolumeChangeHandler::Release() {
 
 	// use the InterlockedDecrement function for thread safety
 	const auto ulRefCount = InterlockedDecrement(&refCount);
@@ -69,14 +68,13 @@ ULONG AudioSessionNotificationHandler::Release() {
 	return ulRefCount;
 }
 
-// ------------------------------------------
-// --- Overridable Default Implementation ---
-// ------------------------------------------
+// -------------------------------------------------
+// --- IAudioEndpointVolumeCallback Interface Functions ---
+// ---------------- Overridable --------------------
+// -------------------------------------------------
 
-/// Notifies the registered processes that the audio session has been created
-HRESULT AudioSessionNotificationHandler::OnSessionCreated(IAudioSessionControl* NewSession) {
-
-	/// default implementation
-
+/// notifies the client that the volume level or muting state of the audio endpoint device has changed
+HRESULT EndpointVolumeChangeHandler::OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify) {
+	// default implementation
 	return S_OK;
 }

@@ -152,6 +152,7 @@
     <ClInclude Include="AudioSessionManager.h" />
     <ClInclude Include="AudioSessionNotificationHandler.h" />
     <ClInclude Include="DeviceEnumNotificationHandler.h" />
+    <ClInclude Include="EndpointVolumeChangeHandler.h" />
     <ClInclude Include="Listener.h" />
     <ClInclude Include="ListenerNotifier.h" />
     <ClInclude Include="Logger.h" />
@@ -166,6 +167,7 @@
     <ClCompile Include="AudioSessionManager.cpp" />
     <ClCompile Include="AudioSessionNotificationHandler.cpp" />
     <ClCompile Include="DeviceEnumNotificationHandler.cpp" />
+    <ClCompile Include="EndpointVolumeChangeHandler.cpp" />
     <ClCompile Include="Listener.cpp" />
     <ClCompile Include="ListenerNotifier.cpp" />
     <ClCompile Include="Logger.cpp" />

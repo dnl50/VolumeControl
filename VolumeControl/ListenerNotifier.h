@@ -20,10 +20,11 @@ public:
 	/// ----- Notifier Methods -----
 	/// ----------------------------
 
-	void notifyOnSessionCreated(const unsigned int id);
+	void notifyOnSessionAdded(const unsigned int id);
 	void notifyOnSessionRemoved(const unsigned int id);
 	void notifyOnVolumeChanged(const unsigned int id, const float newVolume, const bool newMute);
 	void notifyOnDefaultDeviceChanged();
 	void notifyOnDefaultDevicePropertyChanged(PROPERTYKEY key);
+	void notifyOnEndpointVolumeChanged(float newVolume, bool newMute);
 };
 

@@ -36,13 +36,12 @@ void VolumeController::uninitCOM() const {
 
 void VolumeController::init() {
 	// don't change order!
-	try {
-		sessionMngr = make_shared<AudioSessionManager>(*this);
-		notifier->registerListener(sessionMngr);
-
+	try {		
 		deviceManager = make_shared<AudioDeviceManager>(*this);
 		deviceManager->initAndNotify();
 
+		sessionMngr = make_shared<AudioSessionManager>(*this);
+		sessionMngr->init();
 	} catch(std::runtime_error& e) {
 		std::cout << "ERROR" << std::endl;
 	}

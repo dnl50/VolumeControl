@@ -2,11 +2,12 @@
 #include <minwindef.h>
 #include "DeviceEnumNotificationHandler.h"
 #include "VolumeController.h"
+#include "EndpointVolumeChangeHandler.h"
 
 /// forward declare
 class VolumeController;
 
-class AudioDeviceManager : public DeviceEnumNotificationHandler {
+class AudioDeviceManager : public DeviceEnumNotificationHandler, public  EndpointVolumeChangeHandler {
 
 private:
 	const VolumeController& volController;
@@ -14,6 +15,8 @@ private:
 	IMMDeviceEnumerator* deviceEnum;
 
 	IMMDevice* currentDefaultDevice;
+
+	IAudioEndpointVolume* defaultDeviceVolume;
 
 	LPWSTR currentDefaultDeviceID;
 
@@ -29,22 +32,37 @@ public:
 	// the member variable in VolumeController has to be set first
 	void initAndNotify();
 
+	// returns a pointer to the current default audio endpoint device.
+	// NOTE: the pointer must be released by calling the IMMDevice::Release method!
 	IMMDevice* getCurrentDefaultDevice() const;
-	
-	// the pointer returned by this function must be freed with the CoTaskFreeMem Function
+
+	// returns a pointer to a wide character string that contains the devive ID.
 	LPWSTR getCurrentDefaultDeviceID() const;
 
+	// returns a pointer to the audio endpoint device specified by the ID.
+	// NOTE: the pointer must be released by calling the IMMDevice::Release method!
 	IMMDevice* getDeviceByID(const LPCWSTR id) const;
 
+	// returns a pointer to the endpoint volume for the default device.
+	// NOTE: the pointer must be released by calling the IAudioEndpointVolume::Release method!
+	IAudioEndpointVolume* getEndpointVolume() const;
+
+	// releases all references
 	void shutdown() const;
 
-	/// -------------------------------------
-	/// --- DeviceEnumNotificationHandler ---
-	/// ------------ Functions --------------
-	/// -------------------------------------
+	// -------------------------------------
+	// --- DeviceEnumNotificationHandler ---
+	// ------------ Functions --------------
+	// -------------------------------------
 		
 	HRESULT OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId) final;
 	HRESULT OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key) final;
 
+	// -----------------------------------
+	// --- EndpointVolumeChangeHandler ---
+	// ----------- Functions -------------
+	// -----------------------------------
+
+	HRESULT OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify) override;
 };
 

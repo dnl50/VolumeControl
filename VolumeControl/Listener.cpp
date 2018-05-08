@@ -30,3 +30,8 @@ void Listener::OnDefaultDevicePropertyChanged(PROPERTYKEY key) {
 	/// default implementation
 	/// do nothing
 }
+
+void Listener::OnEndpointVolumeChanged(float newVolume, bool newMute) {
+	/// default implementation
+	/// do nothing
+}

@@ -11,17 +11,17 @@
 class VolumeController;
 class AudioSessionEventHandler;
 
-class AudioSessionManager : public AudioSessionNotificationHandler, public Listener {
+class AudioSessionManager : public AudioSessionNotificationHandler {
 
 private:
 	const VolumeController& volController;
 
 	const std::shared_ptr<std::map<ULONG, IAudioSessionControl2*>> idMap;
-	const std::shared_ptr<std::map<ULONG, AudioSessionEventHandler*>> eventHandlerMap;
+	const std::shared_ptr<std::map<ULONG,AudioSessionEventHandler*>> eventHandlerMap;
 
 	IAudioSessionManager2* sessionManager;
 	IAudioSessionEnumerator* sessionEnum;
-
+		
 	ULONG currentID;
 
 	ULONG getNextID();
@@ -31,17 +31,8 @@ private:
 	// returns a smart pointer to a string containing the process name
 	// throws a exception when it's not able to retrieve the name
 	std::shared_ptr<std::wstring> getProcessNameByPID(DWORD pid) const;
-
-	// gets called when the default audio device changes
-	// and this object gets notified by the Listener notification method.
-	// releases all session handles and notifies the listeners as if the sessions
-	// are new.
-	void resetSessionDataAndNotify();
-
-	// releases all session handlers and notifies 
-	// the listeners
-	void removeAllSessions() const;
-
+		
+	// add a new session and notify listeners
 	HRESULT addSession(IAudioSessionControl* newSession);
 
 public:
@@ -67,8 +58,8 @@ public:
 	// gets called when a new session gets created
 	HRESULT OnSessionCreated(IAudioSessionControl* NewSession) override;
 
-	// gets called when the default device changes
-	void OnDefaultDeviceChanged() override;
+	// get the IAudioSessionManager2 and the IAudioSessionEnumerator
+	void init();
 
 };
 
