@@ -10,21 +10,42 @@ class VolumeController;
 class AudioDeviceManager : public DeviceEnumNotificationHandler, public  EndpointVolumeChangeHandler {
 
 private:
+
+	// reference zo the main controller
 	const VolumeController& volController;
-
+	
+	// pointer to the IMMDeviceEnumerator interface to iterate
+	// over all devices and listen for changes
 	IMMDeviceEnumerator* deviceEnum;
-
+	
+	// pointer to thr IMMDevice interface for the current default audio 
+	// rendering device
 	IMMDevice* currentDefaultDevice;
 
+	// pointer to the IAudioEndpointVolume interface to control the master
+	// volume and listen to volume changes of the current default audio
+	// rendering device
 	IAudioEndpointVolume* defaultDeviceVolume;
-
+	
+	// pointer to a wide character char array that contains the device ID
+	// of the current audio rendering device
 	LPWSTR currentDefaultDeviceID;
 
+	/// -------------------------
 	/// --- Private Functions ---
+	/// -------------------------
+	
+	// sets the default device, device ID and defaultDeviceVolume, registers this object as a 
+	// volume change listener. notifies all listeners via the ListenerNotifier retrieved by
+	// the VolumeController::getNotifier method.
 	void updateDefaultDeviceParamsAndNotify();
 
 public:
+
+	// constructor
 	explicit AudioDeviceManager(const VolumeController& volController);
+	
+	// destructor
 	~AudioDeviceManager();
 
 	// initialize the AudioDeviceManager by getting the default device etc.
@@ -47,7 +68,7 @@ public:
 	// NOTE: the pointer must be released by calling the IAudioEndpointVolume::Release method!
 	IAudioEndpointVolume* getEndpointVolume() const;
 
-	// releases all references
+	// releases all interface pointers
 	void shutdown() const;
 
 	// -------------------------------------
@@ -56,6 +77,7 @@ public:
 	// -------------------------------------
 		
 	HRESULT OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId) final;
+	
 	HRESULT OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key) final;
 
 	// -----------------------------------
