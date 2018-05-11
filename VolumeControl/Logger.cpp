@@ -22,7 +22,8 @@ void Logger::OnSessionRemoved(unsigned id) {
 }
 
 void Logger::OnVolumeChanged(unsigned id, const float newVolume, const bool newMute) {
-	std::cout << "Session with id " << id << " changed volume to " << newVolume << " | Muted: " << newMute << std::endl;
+	std::wcout << volController.getAudioSessionManager().getSessionNameByID(id)->c_str() << std::endl;
+	//std::cout << " audio session with id " << id << " changed volume to " << newVolume << " | Muted: " << newMute << std::endl;
 }
 
 void Logger::OnDefaultDevicePropertyChanged(PROPERTYKEY key) {

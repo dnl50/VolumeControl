@@ -1,22 +1,19 @@
 #pragma once
 
 #include <Audiopolicy.h>
-#include "AudioSessionManager.h"
+#include "SessionWrapper.h"
 
 /// forward declare
-class VolumeController;
+class SessionWrapper;
 
-class AudioSessionEventHandler : public IAudioSessionEvents
-{
+class AudioSessionEventHandler : public IAudioSessionEvents {
 private:
-	const VolumeController& volController;
+	const SessionWrapper& sessionWrapper;
 
 	ULONG refCount;
 
-	UINT observedSessionID;
-
 public:
-	explicit AudioSessionEventHandler(const VolumeController& volController, const UINT observedSessionID);
+	explicit AudioSessionEventHandler(const SessionWrapper& wrapper);
 	virtual ~AudioSessionEventHandler();
 
 	/// ---------------------------
@@ -26,7 +23,6 @@ public:
 	HRESULT QueryInterface(const IID& riid, void** ppvObject) final;
 	ULONG AddRef() final;
 	ULONG Release() final;
-
 
 	/// -----------------------------------------------
 	/// --- IAudioSessionEvents Interface Functions ---

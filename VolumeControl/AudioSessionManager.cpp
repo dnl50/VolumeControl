@@ -2,10 +2,25 @@
 #include "AudioSessionManager.h"
 
 #include <iostream>
-#include <Psapi.h>
+#include <psapi.h>
 #include <string>
 
 #define STRING_BUFFER_SIZE 100U
+
+#define SESSION_ENUM_DELETER [](IAudioSessionEnumerator* sessEnum) { \
+	SAFERELEASE(sessEnum); \
+}
+
+#define SESSION_MANAGER_DELETER [this](IAudioSessionManager2* mngr) { \
+	if (mngr) { \
+		mngr->UnregisterSessionNotification(this); \
+	} \
+	SAFERELEASE(mngr); \
+}
+
+#define SESSION_CONTROL_DELETER [](IAudioSessionControl2* sessionCtrl) { \
+	SAFERELEASE(sessionCtrl); \
+}
 
 using std::map;
 using std::shared_ptr;
@@ -13,14 +28,15 @@ using std::vector;
 using std::wstring;
 using std::make_shared;
 using std::pair;
+using std::make_pair;
 
-AudioSessionManager::AudioSessionManager(VolumeController& volController): 
-	volController(volController),
-	idMap(make_shared<map<ULONG, IAudioSessionControl2*>>()),
-	eventHandlerMap(make_shared<map<ULONG, AudioSessionEventHandler*>>()),
-	currentID(0UL),
-	sessionEnum(nullptr),
-	sessionManager(nullptr) {
+AudioSessionManager::AudioSessionManager(VolumeController& volController) : 
+	volController(volController),	
+	wrapperMap(make_shared<map<ULONG, shared_ptr<SessionWrapper>>>()),
+	sessionManager(shared_ptr<IAudioSessionManager2>(nullptr, SESSION_MANAGER_DELETER)),
+	sessionEnum(shared_ptr<IAudioSessionEnumerator>(nullptr, SESSION_ENUM_DELETER)),
+	currentID(0UL)
+{
 	
 }
 
@@ -29,10 +45,10 @@ AudioSessionManager::~AudioSessionManager() = default;
 shared_ptr<vector<ULONG>> AudioSessionManager::getSessionIDs() const {
 	
 	/// create new vector with predefined size
-	shared_ptr<vector<ULONG>> keySet = make_shared<vector<ULONG>>(idMap->size());
+	auto keySet = make_shared<vector<ULONG>>(wrapperMap->size());
 
 	/// for each loop
-	for(const auto& entry : *idMap) {
+	for(const auto& entry : *wrapperMap) {
 		keySet->insert(keySet->end(), entry.first);
 	}
 
@@ -40,79 +56,75 @@ shared_ptr<vector<ULONG>> AudioSessionManager::getSessionIDs() const {
 }
 
 shared_ptr<wstring> AudioSessionManager::getSessionNameByID(const ULONG id) const {
-	const auto find = idMap->find(id);
-	
-	if(find != idMap->end()) {
-		
-		const auto audioSessionControl = find->second;
+	const auto find = wrapperMap->find(id);
 
-		ASSERT(audioSessionControl);
-
-		DWORD pid;
-
-		const auto hr = audioSessionControl->GetProcessId(&pid);
-
-		if(SUCCEEDED(hr)) {
-			return getProcessNameByPID(pid);
-		}
-
-		DEBUG_ERR_PRINT("Failed to get PID from audio session! Err code:" << hr);
+	if (find == wrapperMap->end()) {
+		return make_shared<wstring>(L"System");;
 	}
+
+	const auto wrapper = find->second;
+
+	/// --- try to get the session name via the session control ---
+	LPWSTR displayName = nullptr;
+		
+	auto hr = wrapper->getSessionControl()->GetDisplayName(&displayName);
+
+	/// if the display name was retrieved successfully and has at least 1
+	/// char return it
+	if(SUCCEEDED(hr) && displayName && wcslen(displayName)) {
+		auto str = make_shared<wstring>(displayName);
+		
+		/// free the memory
+		CoTaskMemFree(displayName);
+			
+		return str;
+	}
+
+	/// free the memory
+	CoTaskMemFree(displayName);		
+
+
+
+	/// --- retrieve it via the PID ---
+	DWORD pid;
+	
+	hr = wrapper->getSessionControl()->GetProcessId(&pid);
+
+	if(SUCCEEDED(hr)) {
+		return getProcessNameByPID(pid);
+	}
+
+	DEBUG_ERR_PRINT("Failed to get PID from audio session! Err code: " << std::hex << hr);
 
 	return make_shared<wstring>(L"System");
 }
 
-IAudioSessionControl2* AudioSessionManager::getSessionByID(const ULONG id) const {
-	const auto searchIdMap = idMap->find(id);
+shared_ptr<IAudioSessionControl2> AudioSessionManager::getSessionByID(const ULONG id) const {
+	const auto searchIdMap = wrapperMap->find(id);
 
-	if(searchIdMap == idMap->end()) {
+	if (searchIdMap == wrapperMap ->end()) {
 		return nullptr;
 	}
 
-	return searchIdMap->second;
+	return searchIdMap->second->getSessionControl();
 }
 
 void AudioSessionManager::removeSessionByID(const ULONG id) const {
-	const auto searchIdMap = idMap->find(id);
-	const auto searchHandlerMap = eventHandlerMap->find(id);
+	const auto searchWrapperMap = wrapperMap->find(id);
 
-	/// found in map 1 gdw. found in map 2
-	ASSERT((searchIdMap == idMap->end()) == (searchHandlerMap == eventHandlerMap->end()));
-
-	if(searchIdMap == idMap->end() && searchHandlerMap == eventHandlerMap->end()) {
+	if(searchWrapperMap == wrapperMap->end()) {
 		return;
 	}
-	
-	/// release event handler and session
-	auto sessionEventHandler = searchHandlerMap->second;
-	auto session = searchIdMap->second;
 
-	ASSERT(session && sessionEventHandler);
-
-	if(session && sessionEventHandler) {
-		session->UnregisterAudioSessionNotification(sessionEventHandler);
-
-		/// remove from map
-		idMap->erase(searchIdMap);
-		eventHandlerMap->erase(searchHandlerMap);
-
-		SAFERELEASE(sessionEventHandler);
-		SAFERELEASE(session);
-
-		
-
-		/// notify listeners
-		volController.getListenerNotifier().notifyOnSessionRemoved(id);
-	}	
+	/// remove from map
+	wrapperMap->erase(searchWrapperMap);
+				
+	/// notify listeners
+	volController.getListenerNotifier().notifyOnSessionRemoved(id);		
 }
 
-void AudioSessionManager::shutdown() const {
-	if(sessionManager) {
-		sessionManager->UnregisterSessionNotification((IAudioSessionNotification*) this);
-	}
-
-	SAFERELEASE(sessionEnum);
-	SAFERELEASE(sessionManager);
+const VolumeController& AudioSessionManager::getVolController() const {
+	return volController;
 }
 
 ULONG AudioSessionManager::getNextID() {
@@ -121,59 +133,52 @@ ULONG AudioSessionManager::getNextID() {
 	return currentID;
 }
 
-void AudioSessionManager::init() {
-
-	/// do something only on first call
-	if (sessionManager && sessionEnum) {
-		return;
-	}
-
-	/// release old handles
-	SAFERELEASE(sessionManager);
-	SAFERELEASE(sessionEnum);
-
-	sessionManager = nullptr;
-	sessionEnum = nullptr;
+HRESULT AudioSessionManager::init() {
 
 	/// Activate Device to get IAudioSessionManager2
 	/// and IAudioSessionEnumerator
 	const auto defaultDevice = volController.getAudioDeviceManager().getCurrentDefaultDevice();
 
-	if(!defaultDevice) {
+	if(!defaultDevice || !defaultDevice.get()) {
 		DEBUG_PRINT("Failed to get Default device! Line " << __LINE__);
 
-		return;
+		return E_POINTER;
 	}
+
+	IAudioSessionManager2* mngrPtr = nullptr;
 
 	auto hr = defaultDevice->Activate(
 		__uuidof(IAudioSessionManager2),
 		CLSCTX_ALL,
 		nullptr,
-		reinterpret_cast<void**>(&sessionManager)
+		reinterpret_cast<void**>(&mngrPtr)
 	);
 
-	/// release the handle again
-	defaultDevice->Release();
-
-	if (FAILED(hr) || !sessionManager) {
+	if (FAILED(hr) || !mngrPtr) {
 		DEBUG_PRINT("Failed to get IAudioSessionManager!");
 
-		return;
+		return hr;
 	}
+
+	sessionManager = shared_ptr<IAudioSessionManager2>(mngrPtr, SESSION_MANAGER_DELETER);
+
+	/// get session enum
+	IAudioSessionEnumerator* enumPtr = nullptr;
 
 	hr = sessionManager->GetSessionEnumerator(
-		&sessionEnum
+		&enumPtr
 	);
 
-	if (FAILED(hr) || !sessionEnum) {
+	if (FAILED(hr) || !enumPtr) {
 		DEBUG_PRINT("Failed to get IAudioSessionEnumerator!");
 
-		return;
+		return hr;
 	}
+
+	sessionEnum = shared_ptr<IAudioSessionEnumerator>(enumPtr, SESSION_ENUM_DELETER);
 
 	// register as listener
 	sessionManager->RegisterSessionNotification(this);
-
 
 	// add all current sessions
 	auto sessionCount = 0;
@@ -182,11 +187,10 @@ void AudioSessionManager::init() {
 	if (FAILED(hr)) {
 		DEBUG_PRINT("Failed to get Session count!");
 
-		return;
-	}
-		
+		return hr;
+	}		
 
-	for (int i = 0; i < sessionCount; i++) {
+	for (auto i = 0; i < sessionCount; i++) {
 		IAudioSessionControl* sessionControl = nullptr;
 
 		hr = sessionEnum->GetSession(
@@ -202,6 +206,8 @@ void AudioSessionManager::init() {
 			addSession(sessionControl);
 		}
 	}
+
+	return hr;
 }
 
 // -------------------------
@@ -211,15 +217,15 @@ void AudioSessionManager::init() {
 shared_ptr<wstring> AudioSessionManager::getProcessNameByPID(DWORD pid) const {
 	auto returnStr = make_shared<wstring>();
 
-	const auto processName = static_cast<LPTSTR>(malloc(STRING_BUFFER_SIZE));
+	const auto processName = new wchar_t[STRING_BUFFER_SIZE];
 
 	const auto handle = OpenProcess(
 		PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
-		FALSE,
+		false,
 		pid
 	);
 
-	if (handle) {
+	if (handle) {	
 
 		/// try to get the process name
 		const auto copiedChars = GetModuleBaseName(
@@ -241,26 +247,25 @@ shared_ptr<wstring> AudioSessionManager::getProcessNameByPID(DWORD pid) const {
 			returnStr->append(processName, copiedChars);
 		}
 
+		CloseHandle(handle);
 	}
 	else {
-		DEBUG_ERR_PRINT("Error getting ProcessHandle");
+		DEBUG_ERR_PRINT("Error getting ProcessHandle! Error: " << GetLastError());
 
 		returnStr->append(L"System");
 	}
 
-	CloseHandle(handle);
-
-	free(processName);
+	delete[] processName;
 
 	/// cut the .exe extension
-	const auto fileExtensionIndex = returnStr->find_last_of('.');
+	/*const auto fileExtensionIndex = returnStr->find_last_of('.');
 
 	if (fileExtensionIndex < wstring::npos) {
 		const auto str = returnStr->substr(0, fileExtensionIndex);
 
 		returnStr->clear();
 		returnStr->append(str);
-	}
+	}*/
 
 	return returnStr;
 }
@@ -279,20 +284,17 @@ HRESULT AudioSessionManager::addSession(IAudioSessionControl* newSession) {
 		
 		ULONG insertId = getNextID();
 
-		const auto handler = new AudioSessionEventHandler(volController, insertId);
+		/// create shared pointer that releases the handle when going out of scope
+		auto ptr = shared_ptr<IAudioSessionControl2>(sessionControl, SESSION_CONTROL_DELETER);
 
-		/// insert into the id map
-		idMap->insert(pair<ULONG, IAudioSessionControl2*>(insertId, sessionControl));
+		/// create new session wrapper
+		const auto wrapper = make_shared<SessionWrapper>(*this, insertId, ptr);	
 
-		/// register listener and insert it in the map
-		sessionControl->RegisterAudioSessionNotification(handler);
-		const auto insertPair = std::make_pair(insertId, handler);
-		
-		ASSERT(eventHandlerMap->insert(insertPair).second)
+		/// insert it into the map
+		ASSERT(wrapperMap->insert(make_pair(insertId, wrapper)).second);		
 			
 		/// notify the listeners
-		volController.getListenerNotifier().notifyOnSessionAdded(insertId);	
-
+		volController.getListenerNotifier().notifyOnSessionAdded(insertId);
 		
 	} else {
 		DEBUG_PRINT("Error getting IAudioSessionControl2!");
@@ -306,8 +308,6 @@ HRESULT AudioSessionManager::addSession(IAudioSessionControl* newSession) {
 // ------------- Method -----------------
 
 HRESULT AudioSessionManager::OnSessionCreated(IAudioSessionControl* NewSession) {
-	DEBUG_PRINT("OnSessionCreated called in line " << __LINE__);
-	
 	return addSession(NewSession);
 }
 

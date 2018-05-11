@@ -3,7 +3,7 @@
 #include <iostream>
 
 /// Init the reference counter and set the session ID to identify the observed Session
-AudioSessionEventHandler::AudioSessionEventHandler(const VolumeController& volController, const UINT observedSessionID) : refCount(1UL), volController(volController), observedSessionID(observedSessionID) {
+AudioSessionEventHandler::AudioSessionEventHandler(const SessionWrapper& wrapper) : sessionWrapper(wrapper), refCount(1UL) {
 
 }
 
@@ -86,7 +86,10 @@ HRESULT AudioSessionEventHandler::OnIconPathChanged(LPCWSTR NewIconPath, LPCGUID
 
 /// Notifies the client that the volume level or muting state of the session has changed
 HRESULT AudioSessionEventHandler::OnSimpleVolumeChanged(float NewVolume, BOOL NewMute, LPCGUID EventContext) {
-	volController.getListenerNotifier().notifyOnVolumeChanged(observedSessionID, NewVolume, NewMute);
+	sessionWrapper.getAudioSessionManager()
+		.getVolController()
+		.getListenerNotifier()
+		.notifyOnVolumeChanged(sessionWrapper.getSessionID(), NewVolume, NewMute);
 
 	return S_OK;
 }
@@ -113,7 +116,7 @@ HRESULT AudioSessionEventHandler::OnStateChanged(AudioSessionState NewState) {
 	switch(NewState) {
 
 	case AudioSessionStateExpired:
-		volController.getAudioSessionManager().removeSessionByID(observedSessionID);
+		sessionWrapper.getAudioSessionManager().removeSessionByID(sessionWrapper.getSessionID());
 		break;	
 
 	default:
@@ -126,7 +129,8 @@ HRESULT AudioSessionEventHandler::OnStateChanged(AudioSessionState NewState) {
 
 /// Notifies the client that the session has been disconnected
 HRESULT AudioSessionEventHandler::OnSessionDisconnected(AudioSessionDisconnectReason DisconnectReason) {	
-	volController.getAudioSessionManager().removeSessionByID(observedSessionID);
+	sessionWrapper.getAudioSessionManager()
+		.removeSessionByID(sessionWrapper.getSessionID());
 	
 	return S_OK;
 }

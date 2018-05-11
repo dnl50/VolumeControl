@@ -2,19 +2,46 @@
 #include "AudioDeviceManager.h"
 #include <iostream>
 
+#define DEVICE_ENUM_DELETER [this](IMMDeviceEnumerator* devEnum) { \
+	if (devEnum) { \
+		devEnum->UnregisterEndpointNotificationCallback(this); \
+	} \
+	SAFERELEASE(devEnum); \
+}
+
+#define DEVICE_DELETER [](IMMDevice* dev) { \
+	SAFERELEASE(dev) \
+}
+
+#define LPWSTR_DELETER [](wchar_t* arr) { \
+	CoTaskMemFree(arr); \
+	delete arr; \
+}
+
+#define VOLUME_DELETER [this](IAudioEndpointVolume* vol) { \
+	if (vol) { \
+		vol->UnregisterControlChangeNotify(this); \
+	} \
+	SAFERELEASE(vol); \
+}
+
+
+using std::shared_ptr;
 
 AudioDeviceManager::AudioDeviceManager(const VolumeController& volController) : volController(volController),
-		deviceEnum(nullptr), 
-		currentDefaultDevice(nullptr), 
-		currentDefaultDeviceID(nullptr), 
-		defaultDeviceVolume(nullptr) {
+		deviceEnum(nullptr, DEVICE_ENUM_DELETER), 
+		currentDefaultDevice(nullptr, DEVICE_DELETER), 
+		currentDefaultDeviceID(nullptr, LPWSTR_DELETER), 
+		defaultDeviceVolume(nullptr, VOLUME_DELETER) 
+{
 
 }
 
 AudioDeviceManager::~AudioDeviceManager() = default;
 
-void AudioDeviceManager::initAndNotify() {
-	/// get device enum
+HRESULT AudioDeviceManager::initAndNotify() {
+	
+	// get device enum
 	const auto hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator),
 		nullptr,
@@ -22,74 +49,69 @@ void AudioDeviceManager::initAndNotify() {
 		__uuidof(IMMDeviceEnumerator),
 		reinterpret_cast<void**>(&deviceEnum)
 	);
-
+		
 	if (FAILED(hr) || !deviceEnum) {
 		DEBUG_PRINT("Failed to get Device Enum!");
 
 		SAFERELEASE(deviceEnum);
 
-		throw std::runtime_error("Failed to get Device Enum!");
+		return hr;
 	}
 
-	ASSERT(deviceEnum);
-
-	/// register as device change listener
+	// register as device change listener
 	deviceEnum->RegisterEndpointNotificationCallback(this);
 
-	updateDefaultDeviceParamsAndNotify();
+	return updateDefaultDeviceParamsAndNotify();
 }
 
-void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
-	/// unregister listener and saferelease
-	if (defaultDeviceVolume) {
-		defaultDeviceVolume->UnregisterControlChangeNotify(this);
-		defaultDeviceVolume->Release();
-	}
-
-	SAFERELEASE(currentDefaultDevice);
-
-	/// reset completely
-	currentDefaultDevice = nullptr;
-	defaultDeviceVolume = nullptr;
-
+HRESULT AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 	/// get default device
+	IMMDevice* defDev = nullptr;
+
 	auto hr = deviceEnum->GetDefaultAudioEndpoint(
 		EDataFlow::eRender,
 		ERole::eMultimedia,
-		&currentDefaultDevice
+		&defDev
 	);
 
-	if (FAILED(hr) || !currentDefaultDevice) {
+	if (FAILED(hr) || !defDev) {
 		DEBUG_PRINT("Failed to get default render device!");
 
-		return;
+		return hr;
 	}
 
-	/// get the default device ID
-	CoTaskMemFree(currentDefaultDeviceID);
-	currentDefaultDeviceID = nullptr;
+	currentDefaultDevice = shared_ptr<IMMDevice>(defDev, DEVICE_DELETER);
 
-	hr = currentDefaultDevice->GetId(&currentDefaultDeviceID);
+	/// get default device ID
+	auto devId = new wchar_t;
+		
+	hr = currentDefaultDevice->GetId(&devId);
 
-	if (FAILED(hr) || !currentDefaultDeviceID) {
+	if (FAILED(hr) || !devId) {
 		DEBUG_PRINT("Failed to get default render device ID!");
 
-		return;
+		return hr;
 	}
 
+	currentDefaultDeviceID = shared_ptr<wchar_t>(devId, LPWSTR_DELETER);
+
 	/// get default device volume
+	IAudioEndpointVolume* volPtr = nullptr;
+	
 	hr = currentDefaultDevice->Activate(
 		__uuidof(IAudioEndpointVolume),
 		CLSCTX_ALL,
 		nullptr,
-		reinterpret_cast<void**>(&defaultDeviceVolume)
+		reinterpret_cast<void**>(&volPtr)
 	);
-
-	if (FAILED(hr) || !defaultDeviceVolume) {
+		
+	if (FAILED(hr) || !volPtr) {
 		DEBUG_PRINT("Failed to get default render device volume!");
 
-		return;
+		return hr;
 	}
+
+	defaultDeviceVolume = shared_ptr<IAudioEndpointVolume>(volPtr, VOLUME_DELETER);
 
 	/// add ref
 	defaultDeviceVolume->AddRef();
@@ -99,19 +121,19 @@ void AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 
 	/// notify the listeners
 	volController.getListenerNotifier().notifyOnDefaultDeviceChanged();
+
+	return hr;
 }
 
-IMMDevice* AudioDeviceManager::getCurrentDefaultDevice() const {
-	currentDefaultDevice->AddRef();
-
+shared_ptr<IMMDevice> AudioDeviceManager::getCurrentDefaultDevice() const {
 	return currentDefaultDevice;
 }
 
-LPWSTR AudioDeviceManager::getCurrentDefaultDeviceID() const {
-	return this->currentDefaultDeviceID;
+shared_ptr<wchar_t> AudioDeviceManager::getCurrentDefaultDeviceID() const {
+	return currentDefaultDeviceID;
 }
 
-IMMDevice* AudioDeviceManager::getDeviceByID(const LPCWSTR id) const {
+shared_ptr<IMMDevice> AudioDeviceManager::getDeviceByID(const LPCWSTR id) const {
 	IMMDevice* device = nullptr;
 
 	const auto hr = deviceEnum->GetDevice(
@@ -119,61 +141,47 @@ IMMDevice* AudioDeviceManager::getDeviceByID(const LPCWSTR id) const {
 		&device
 	);	
 
-#ifdef _DEBUG
-
-	if (FAILED(hr) || !device) {
-		DEBUG_PRINT("Error getting device!");
+	// return nullptr if it failed
+	if(FAILED(hr) || !device) {
+		return shared_ptr<IMMDevice>(nullptr);
 	}
 
-	ASSERT(device);
-
-#endif
-
-	return device;
+	// return shared pointer woth custom deleter
+	return shared_ptr<IMMDevice>(device, DEVICE_DELETER);
 }
 
-IAudioEndpointVolume* AudioDeviceManager::getEndpointVolume() const {
-	IAudioEndpointVolume* vol = nullptr;
-	
-	if(auto device = getCurrentDefaultDevice()) {
-		device->Activate(
-			__uuidof(IAudioEndpointVolume),
-			CLSCTX_ALL,
-			nullptr,
-			reinterpret_cast<void**>(&vol)
-		);
-	}
-
-	return vol;
-}
-
-void AudioDeviceManager::shutdown() const {
-	/// unregister as listener
-	if(deviceEnum) {
-		deviceEnum->UnregisterEndpointNotificationCallback((IMMNotificationClient*) this);		
-	}
-
-	if(defaultDeviceVolume) {
-		defaultDeviceVolume->UnregisterControlChangeNotify((IAudioEndpointVolumeCallback*) this);
-	}
-
-	SAFERELEASE(defaultDeviceVolume);
-	SAFERELEASE(currentDefaultDevice);
-	SAFERELEASE(deviceEnum);
+shared_ptr<IAudioEndpointVolume> AudioDeviceManager::getEndpointVolume() const {
+	return defaultDeviceVolume;
 }
 
 HRESULT AudioDeviceManager::OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId) {
-	const auto newDefault = (currentDefaultDeviceID == nullptr) ? true : wcscmp(pwstrDefaultDeviceId, currentDefaultDeviceID);
+	// only do something when the default device really changed
+	const auto newDefault = (!currentDefaultDeviceID || !currentDefaultDeviceID.get()) ? true : wcscmp(pwstrDefaultDeviceId, currentDefaultDeviceID.get());
 		
 	if(flow == EDataFlow::eRender && role == ERole::eMultimedia && newDefault) {
-		updateDefaultDeviceParamsAndNotify();
+		const auto hr = updateDefaultDeviceParamsAndNotify();
+
+		// notify the listeners that the device volume could have been
+		// changed potentially
+		if(SUCCEEDED(hr)) {
+			float devVol = 0.f;
+			BOOL muted = FALSE;
+
+			const auto hr1 = defaultDeviceVolume->GetMasterVolumeLevel(&devVol);
+			const auto hr2 = defaultDeviceVolume->GetMute(&muted);
+
+			if(SUCCEEDED(hr1) && SUCCEEDED(hr2)) {
+				volController.getListenerNotifier().notifyOnEndpointVolumeChanged(devVol, muted);
+			}
+		}
 	}
 
 	return S_OK;
 }
 
 HRESULT AudioDeviceManager::OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key) {
-	const auto ofDefault = wcscmp(pwstrDeviceId, currentDefaultDeviceID);
+	// only care for default device changes
+	const auto ofDefault = (currentDefaultDeviceID.get() == nullptr) ? false : wcscmp(pwstrDeviceId, currentDefaultDeviceID.get());
 
 	if(ofDefault) {
 		volController.getListenerNotifier().notifyOnDefaultDevicePropertyChanged(key);

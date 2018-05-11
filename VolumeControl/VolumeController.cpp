@@ -15,14 +15,6 @@ VolumeController::VolumeController() : deviceManager(nullptr), sessionMngr(nullp
 }
 
 VolumeController::~VolumeController() {
-	if(sessionMngr) {
-		sessionMngr->shutdown();
-	}
-
-	if(deviceManager) {
-		deviceManager->shutdown();
-	}
-
 	uninitCOM();
 };
 
@@ -34,17 +26,21 @@ void VolumeController::uninitCOM() const {
 	CoUninitialize();
 }
 
-void VolumeController::init() {
+HRESULT VolumeController::init() {
 	// don't change order!
-	try {		
-		deviceManager = make_shared<AudioDeviceManager>(*this);
-		deviceManager->initAndNotify();
+			
+		
+	deviceManager = make_shared<AudioDeviceManager>(*this);
+		
+	const auto hr = deviceManager->initAndNotify();
 
-		sessionMngr = make_shared<AudioSessionManager>(*this);
-		sessionMngr->init();
-	} catch(std::runtime_error& e) {
-		std::cout << "ERROR" << std::endl;
+	if(FAILED(hr)) {
+		return hr;
 	}
+
+	sessionMngr = make_shared<AudioSessionManager>(*this);
+	
+	return sessionMngr->init();
 }
 
 ListenerNotifier& VolumeController::getListenerNotifier() const {

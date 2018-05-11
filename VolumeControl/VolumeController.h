@@ -23,7 +23,7 @@ public:
 	VolumeController();
 	~VolumeController();
 
-	void init();
+	HRESULT init();
 
 	ListenerNotifier& getListenerNotifier() const;
 	AudioSessionManager& getAudioSessionManager() const;

@@ -16,20 +16,20 @@ private:
 	
 	// pointer to the IMMDeviceEnumerator interface to iterate
 	// over all devices and listen for changes
-	IMMDeviceEnumerator* deviceEnum;
+	std::shared_ptr<IMMDeviceEnumerator> deviceEnum;
 	
 	// pointer to thr IMMDevice interface for the current default audio 
 	// rendering device
-	IMMDevice* currentDefaultDevice;
+	std::shared_ptr<IMMDevice> currentDefaultDevice;
 
 	// pointer to the IAudioEndpointVolume interface to control the master
 	// volume and listen to volume changes of the current default audio
 	// rendering device
-	IAudioEndpointVolume* defaultDeviceVolume;
+	std::shared_ptr<IAudioEndpointVolume> defaultDeviceVolume;
 	
 	// pointer to a wide character char array that contains the device ID
 	// of the current audio rendering device
-	LPWSTR currentDefaultDeviceID;
+	std::shared_ptr<wchar_t> currentDefaultDeviceID;
 
 	/// -------------------------
 	/// --- Private Functions ---
@@ -38,7 +38,7 @@ private:
 	// sets the default device, device ID and defaultDeviceVolume, registers this object as a 
 	// volume change listener. notifies all listeners via the ListenerNotifier retrieved by
 	// the VolumeController::getNotifier method.
-	void updateDefaultDeviceParamsAndNotify();
+	HRESULT updateDefaultDeviceParamsAndNotify();
 
 public:
 
@@ -51,26 +51,21 @@ public:
 	// initialize the AudioDeviceManager by getting the default device etc.
 	// explicit method because it can't be done in the contructor because it
 	// the member variable in VolumeController has to be set first
-	void initAndNotify();
+	HRESULT initAndNotify();
 
-	// returns a pointer to the current default audio endpoint device.
-	// NOTE: the pointer must be released by calling the IMMDevice::Release method!
-	IMMDevice* getCurrentDefaultDevice() const;
+	// returns a shared pointer to the current default audio endpoint device.
+	std::shared_ptr<IMMDevice> getCurrentDefaultDevice() const;
 
-	// returns a pointer to a wide character string that contains the devive ID.
-	LPWSTR getCurrentDefaultDeviceID() const;
+	// returns a shared pointer to a wide character string that contains the devive ID.
+	std::shared_ptr<wchar_t> getCurrentDefaultDeviceID() const;
 
-	// returns a pointer to the audio endpoint device specified by the ID.
-	// NOTE: the pointer must be released by calling the IMMDevice::Release method!
-	IMMDevice* getDeviceByID(const LPCWSTR id) const;
+	// returns a shared pointer to the audio endpoint device specified by the ID.
+	std::shared_ptr<IMMDevice> getDeviceByID(const LPCWSTR id) const;
 
-	// returns a pointer to the endpoint volume for the default device.
-	// NOTE: the pointer must be released by calling the IAudioEndpointVolume::Release method!
-	IAudioEndpointVolume* getEndpointVolume() const;
-
-	// releases all interface pointers
-	void shutdown() const;
-
+	// returns a shared pointer to the endpoint volume for the default device.
+	std::shared_ptr<IAudioEndpointVolume> getEndpointVolume() const;
+	
+		
 	// -------------------------------------
 	// --- DeviceEnumNotificationHandler ---
 	// ------------ Functions --------------
