@@ -17,7 +17,7 @@ private:
 	const std::shared_ptr<ListenerNotifier> notifier;
 
 	HRESULT initCOM() const;
-	void uninitCOM() const;	
+	void uninitCOM() const;
 
 public:
 	VolumeController();

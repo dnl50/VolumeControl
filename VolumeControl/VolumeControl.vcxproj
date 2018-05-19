@@ -23,7 +23,7 @@
     <ProjectGuid>{EB3FD625-DA16-4D8A-9E93-5E2CA75BAB18}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>VolumeControl</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -98,17 +98,19 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>C:\Program Files\boost\boost_1_67_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files\boost\boost_1_67_0\stage\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -152,12 +154,14 @@
     <ClInclude Include="AudioSessionEventHandler.h" />
     <ClInclude Include="AudioSessionManager.h" />
     <ClInclude Include="AudioSessionNotificationHandler.h" />
+    <ClInclude Include="COMController.h" />
     <ClInclude Include="DeviceEnumNotificationHandler.h" />
     <ClInclude Include="EndpointVolumeChangeHandler.h" />
     <ClInclude Include="Listener.h" />
     <ClInclude Include="ListenerNotifier.h" />
     <ClInclude Include="Logger.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="SerialPort.h" />
     <ClInclude Include="SessionWrapper.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -168,11 +172,13 @@
     <ClCompile Include="AudioSessionEventHandler.cpp" />
     <ClCompile Include="AudioSessionManager.cpp" />
     <ClCompile Include="AudioSessionNotificationHandler.cpp" />
+    <ClCompile Include="COMController.cpp" />
     <ClCompile Include="DeviceEnumNotificationHandler.cpp" />
     <ClCompile Include="EndpointVolumeChangeHandler.cpp" />
     <ClCompile Include="Listener.cpp" />
     <ClCompile Include="ListenerNotifier.cpp" />
     <ClCompile Include="Logger.cpp" />
+    <ClCompile Include="SerialPort.cpp" />
     <ClCompile Include="SessionWrapper.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

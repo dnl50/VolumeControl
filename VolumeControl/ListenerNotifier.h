@@ -1,4 +1,6 @@
 #pragma once
+
+#include <Windows.h>
 #include <wincon.h>
 #include <list>
 #include "Listener.h"

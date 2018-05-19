@@ -1,5 +1,9 @@
 #pragma once
+
+#include <WTypes.h>
+
 class Listener {
+
 public:
 	Listener();
 	virtual ~Listener();

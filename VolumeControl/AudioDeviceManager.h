@@ -1,4 +1,6 @@
 #pragma once
+
+#include <Windows.h>
 #include <minwindef.h>
 #include "DeviceEnumNotificationHandler.h"
 #include "VolumeController.h"

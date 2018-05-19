@@ -15,7 +15,6 @@
 
 #define LPWSTR_DELETER [](wchar_t* arr) { \
 	CoTaskMemFree(arr); \
-	delete arr; \
 }
 
 #define VOLUME_DELETER [this](IAudioEndpointVolume* vol) { \
@@ -167,7 +166,7 @@ HRESULT AudioDeviceManager::OnDefaultDeviceChanged(EDataFlow flow, ERole role, L
 			float devVol = 0.f;
 			BOOL muted = FALSE;
 
-			const auto hr1 = defaultDeviceVolume->GetMasterVolumeLevel(&devVol);
+			const auto hr1 = defaultDeviceVolume->GetMasterVolumeLevelScalar(&devVol);
 			const auto hr2 = defaultDeviceVolume->GetMute(&muted);
 
 			if(SUCCEEDED(hr1) && SUCCEEDED(hr2)) {
