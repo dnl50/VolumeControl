@@ -26,12 +26,14 @@
 
 
 using std::shared_ptr;
+using std::wstring;
+using std::make_shared;
 
 AudioDeviceManager::AudioDeviceManager(const VolumeController& volController) : volController(volController),
 		deviceEnum(nullptr, DEVICE_ENUM_DELETER), 
 		currentDefaultDevice(nullptr, DEVICE_DELETER), 
 		currentDefaultDeviceID(nullptr, LPWSTR_DELETER), 
-		defaultDeviceVolume(nullptr, VOLUME_DELETER) 
+		defaultDeviceVolume(nullptr, VOLUME_DELETER)
 {
 
 }
@@ -64,7 +66,7 @@ HRESULT AudioDeviceManager::initAndNotify() {
 }
 
 HRESULT AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
-	/// get default device
+	// get default device
 	IMMDevice* defDev = nullptr;
 
 	auto hr = deviceEnum->GetDefaultAudioEndpoint(
@@ -89,12 +91,14 @@ HRESULT AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 	if (FAILED(hr) || !devId) {
 		DEBUG_PRINT("Failed to get default render device ID!");
 
+		delete devId;
+
 		return hr;
 	}
 
 	currentDefaultDeviceID = shared_ptr<wchar_t>(devId, LPWSTR_DELETER);
 
-	/// get default device volume
+	// get default device volume
 	IAudioEndpointVolume* volPtr = nullptr;
 	
 	hr = currentDefaultDevice->Activate(
@@ -112,14 +116,20 @@ HRESULT AudioDeviceManager::updateDefaultDeviceParamsAndNotify() {
 
 	defaultDeviceVolume = shared_ptr<IAudioEndpointVolume>(volPtr, VOLUME_DELETER);
 
-	/// add ref
+	// add ref
 	defaultDeviceVolume->AddRef();
 
-	/// register as listener
+	// register as listener
 	defaultDeviceVolume->RegisterControlChangeNotify(this);
 
-	/// notify the listeners
+	// notify the listeners that the default device changed
 	volController.getListenerNotifier().notifyOnDefaultDeviceChanged();
+
+	// notify the listeners that the default device volume level changed
+	const auto vol = getDefaultDeviceVolumeFloat();
+	const auto mute = getDefautlDeviceVolumeMute();
+
+	volController.getListenerNotifier().notifyOnEndpointVolumeChanged(vol, mute);
 
 	return hr;
 }
@@ -145,26 +155,77 @@ shared_ptr<IMMDevice> AudioDeviceManager::getDeviceByID(const LPCWSTR id) const 
 		return shared_ptr<IMMDevice>(nullptr);
 	}
 
-	// return shared pointer woth custom deleter
+	// return shared pointer with custom deleter
 	return shared_ptr<IMMDevice>(device, DEVICE_DELETER);
+}
+
+shared_ptr<wstring> AudioDeviceManager::getDefaultDeviceName() const {
+	IPropertyStore* deviceProps = nullptr;
+	PROPVARIANT varName;
+
+	auto hr = getCurrentDefaultDevice()->OpenPropertyStore(STGM_READ,
+		&deviceProps);
+
+	if(FAILED(hr)) {
+		return make_shared<wstring>(L"Error getting device name!");
+	}
+
+	hr = deviceProps->GetValue(
+		PKEY_Device_FriendlyName,
+		&varName
+	);
+
+	shared_ptr<wstring> deviceName;
+
+	if(SUCCEEDED(hr)) {
+		deviceName = make_shared<wstring>(varName.pwszVal);
+	} else {
+		deviceName = make_shared<wstring>(L"Error getting device name!");
+	}
+
+	// clear the variables properly
+	PropVariantClear(&varName);
+
+	if(deviceProps) {
+		deviceProps->Release();
+		deviceProps = nullptr;
+	}
+
+	return deviceName;
 }
 
 shared_ptr<IAudioEndpointVolume> AudioDeviceManager::getEndpointVolume() const {
 	return defaultDeviceVolume;
 }
 
-HRESULT AudioDeviceManager::OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId) {
-	// only do something when the default device really changed
-	const auto newDefault = (!currentDefaultDeviceID || !currentDefaultDeviceID.get()) ? true : wcscmp(pwstrDefaultDeviceId, currentDefaultDeviceID.get());
+float AudioDeviceManager::getDefaultDeviceVolumeFloat() const {
+	auto vol = -1.f;
+
+	getEndpointVolume()->GetMasterVolumeLevelScalar(&vol);
 		
+	return vol;
+}
+
+BOOL AudioDeviceManager::getDefautlDeviceVolumeMute() const {
+	auto mute = FALSE;
+
+	getEndpointVolume()->GetMute(&mute);
+
+	return mute;
+}
+
+HRESULT AudioDeviceManager::OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDefaultDeviceId) {
+	// only do something when the default device really changed (new ID)
+	const auto newDefault = (!currentDefaultDeviceID || !currentDefaultDeviceID.get()) ? true : wcscmp(pwstrDefaultDeviceId, currentDefaultDeviceID.get());
+	
 	if(flow == EDataFlow::eRender && role == ERole::eMultimedia && newDefault) {
 		const auto hr = updateDefaultDeviceParamsAndNotify();
 
 		// notify the listeners that the device volume could have been
 		// changed potentially
 		if(SUCCEEDED(hr)) {
-			float devVol = 0.f;
-			BOOL muted = FALSE;
+			auto devVol = 0.f;
+			auto muted = FALSE;
 
 			const auto hr1 = defaultDeviceVolume->GetMasterVolumeLevelScalar(&devVol);
 			const auto hr2 = defaultDeviceVolume->GetMute(&muted);

@@ -5,6 +5,7 @@
 #include "DeviceEnumNotificationHandler.h"
 #include "VolumeController.h"
 #include "EndpointVolumeChangeHandler.h"
+#include <Functiondiscoverykeys_devpkey.h>
 
 /// forward declare
 class VolumeController;
@@ -64,10 +65,18 @@ public:
 	// returns a shared pointer to the audio endpoint device specified by the ID.
 	std::shared_ptr<IMMDevice> getDeviceByID(const LPCWSTR id) const;
 
+	// returns the name of the current default device
+	std::shared_ptr<std::wstring> getDefaultDeviceName() const;
+
 	// returns a shared pointer to the endpoint volume for the default device.
 	std::shared_ptr<IAudioEndpointVolume> getEndpointVolume() const;
-	
-		
+
+	// returns the current volume of the current default device
+	float getDefaultDeviceVolumeFloat() const;
+
+	// returns TRUE if the current default audio endpoint device is muted, FALSE otherwise or on failure
+	BOOL getDefautlDeviceVolumeMute() const;
+
 	// -------------------------------------
 	// --- DeviceEnumNotificationHandler ---
 	// ------------ Functions --------------
